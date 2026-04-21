@@ -44,6 +44,10 @@ export type OpenAISettings = {
   model: string
 }
 
+export type OpenAIModels = {
+  models: string[]
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -97,7 +101,16 @@ export function saveOpenAISettings(settings: {
   })
 }
 
+export function getOpenAIModels(settings: {
+  base_url: string
+  api_key: string
+}) {
+  return request<OpenAIModels>("/api/settings/openai/models", {
+    method: "POST",
+    body: JSON.stringify(settings),
+  })
+}
+
 export function finalVideoUrl(taskId: string) {
   return `${API_BASE}/api/tasks/${taskId}/artifact/final-video`
 }
-

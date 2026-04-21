@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from . import database
+from .adapters.openai_translate import list_models as list_openai_models
 from .config import YOUTUBE_COOKIE_PATH, ensure_runtime_dirs
 from .pipeline import run_task
 from .youtube import extract_video_id
@@ -35,6 +36,11 @@ class OpenAISettingsUpdate(BaseModel):
     base_url: str
     api_key: str = ""
     model: str
+
+
+class OpenAIModelsRequest(BaseModel):
+    base_url: str = ""
+    api_key: str = ""
 
 
 @asynccontextmanager
@@ -152,3 +158,17 @@ def get_openai_settings() -> dict:
 def save_openai_settings(payload: OpenAISettingsUpdate) -> dict:
     database.save_openai_settings(payload.base_url, payload.api_key, payload.model)
     return get_openai_settings()
+
+
+@app.post("/api/settings/openai/models")
+def get_openai_models(payload: OpenAIModelsRequest) -> dict:
+    settings = database.get_openai_settings()
+    base_url = payload.base_url.strip() or settings["base_url"]
+    api_key = payload.api_key.strip() or settings["api_key"]
+    try:
+        models = list_openai_models(base_url=base_url, api_key=api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch models: {exc}") from exc
+    return {"models": models}

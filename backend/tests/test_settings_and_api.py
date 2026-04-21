@@ -58,3 +58,46 @@ def test_cors_origins_include_runtime_configuration(monkeypatch):
     assert "http://localhost:3000" in origins
     assert "http://172.27.2.90:3000" in origins
     assert "http://100.94.222.54:3000" in origins
+
+
+def test_openai_models_use_form_key_without_leaking_it(monkeypatch, tmp_path):
+    configure_tmp_runtime(monkeypatch, tmp_path)
+    captured = {}
+
+    def fake_list_models(*, base_url: str, api_key: str) -> list[str]:
+        captured["base_url"] = base_url
+        captured["api_key"] = api_key
+        return ["gpt-test", "qwen-test"]
+
+    monkeypatch.setattr(main, "list_openai_models", fake_list_models)
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/api/settings/openai/models",
+        json={"base_url": "https://example.com/v1", "api_key": "sk-secret-models"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"models": ["gpt-test", "qwen-test"]}
+    assert captured == {"base_url": "https://example.com/v1", "api_key": "sk-secret-models"}
+    assert "sk-secret-models" not in response.text
+
+
+def test_openai_models_can_use_saved_key(monkeypatch, tmp_path):
+    configure_tmp_runtime(monkeypatch, tmp_path)
+    database.save_openai_settings("https://saved.example/v1", "sk-saved", "saved-model")
+    captured = {}
+
+    def fake_list_models(*, base_url: str, api_key: str) -> list[str]:
+        captured["base_url"] = base_url
+        captured["api_key"] = api_key
+        return ["saved-model"]
+
+    monkeypatch.setattr(main, "list_openai_models", fake_list_models)
+    client = TestClient(main.app)
+
+    response = client.post("/api/settings/openai/models", json={"base_url": "", "api_key": ""})
+
+    assert response.status_code == 200
+    assert response.json() == {"models": ["saved-model"]}
+    assert captured == {"base_url": "https://saved.example/v1", "api_key": "sk-saved"}

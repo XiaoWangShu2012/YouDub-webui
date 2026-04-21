@@ -13,6 +13,22 @@ SYSTEM_PROMPT = (
 )
 
 
+def list_models(*, base_url: str, api_key: str) -> list[str]:
+    if not api_key:
+        raise ValueError("OpenAI API key is not configured.")
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    response = client.models.list()
+    seen: set[str] = set()
+    models: list[str] = []
+    for item in response.data:
+        model_id = getattr(item, "id", "")
+        if model_id and model_id not in seen:
+            seen.add(model_id)
+            models.append(model_id)
+    return models
+
+
 def translate_sentence(text: str, *, base_url: str, api_key: str, model: str) -> str:
     if not api_key:
         raise ValueError("OpenAI API key is not configured.")
@@ -50,4 +66,3 @@ def translate_asr(asr_file: Path, session: Path, settings: dict[str, str]) -> Pa
 
     output_file.write_text(json.dumps({"translation": translation}, ensure_ascii=False, indent=2), encoding="utf-8")
     return output_file
-
