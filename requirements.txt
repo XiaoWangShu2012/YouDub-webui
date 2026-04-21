@@ -4,7 +4,6 @@ python-dotenv
 pydantic
 openai
 yt-dlp
-demucs
 funasr
 modelscope
 voxcpm

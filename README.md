@@ -32,6 +32,7 @@ cd /Users/liuzhao/code/YouDub-webui
   -i https://mirrors.aliyun.com/pypi/simple/ \
   --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple/ \
   -r requirements.txt
+git submodule update --init --recursive
 npm --prefix apps/web install --registry=https://registry.npmmirror.com
 ```
 
@@ -95,6 +96,10 @@ Key files:
 - `tmp/audio_dubbing.wav`
 - `metadata/subtitles.zh.srt`
 - `media/video_final.mp4`
+
+## Demucs Source
+
+Demucs is a git submodule at `submodule/demucs`. The PyPI release is not used because the app imports `demucs.api`, which is available from the source tree.
 
 ## ModelScope
 

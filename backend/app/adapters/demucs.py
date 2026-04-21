@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-from ..config import device
+from ..config import REPO_ROOT, device
 
 
 def _device() -> str:
@@ -18,6 +19,11 @@ def _device() -> str:
 
 
 def separate_audio(video_file: Path, session: Path) -> tuple[Path, Path]:
+    demucs_path = REPO_ROOT / "submodule" / "demucs"
+    if not demucs_path.exists():
+        raise RuntimeError("Demucs submodule is missing. Run: git submodule update --init --recursive")
+    sys.path.insert(0, str(demucs_path))
+
     from demucs.api import Separator, save_audio
 
     media_dir = session / "media"
@@ -39,4 +45,3 @@ def separate_audio(video_file: Path, session: Path) -> tuple[Path, Path]:
     save_audio(vocals, str(vocals_file), samplerate=separator.samplerate)
     save_audio(bgm, str(bgm_file), samplerate=separator.samplerate)
     return vocals_file, bgm_file
-
