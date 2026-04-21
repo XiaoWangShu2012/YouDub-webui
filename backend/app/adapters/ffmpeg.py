@@ -4,6 +4,27 @@ import json
 import subprocess
 from pathlib import Path
 
+LANDSCAPE_SUBTITLE_STYLE = (
+    "FontName=Arial,"
+    "FontSize=24,"
+    "PrimaryColour=&H00FFFFFF,"
+    "OutlineColour=&H00000000,"
+    "BorderStyle=1,"
+    "Outline=2,"
+    "Alignment=2,"
+    "MarginV=5"
+)
+PORTRAIT_SUBTITLE_STYLE = (
+    "FontName=Arial,"
+    "FontSize=12,"
+    "PrimaryColour=&H00FFFFFF,"
+    "OutlineColour=&H00000000,"
+    "BorderStyle=1,"
+    "Outline=2,"
+    "Alignment=2,"
+    "MarginV=70"
+)
+
 
 def _srt_time(ms: int) -> str:
     hours = ms // 3_600_000
@@ -26,6 +47,58 @@ def write_srt(translation_file: Path, session: Path) -> Path:
         lines.append("")
     output_file.write_text("\n".join(lines), encoding="utf-8")
     return output_file
+
+
+def probe_video_size(video_file: Path) -> tuple[int, int] | None:
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "csv=p=0",
+            str(video_file),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+
+    lines = result.stdout.strip().splitlines()
+    if not lines:
+        return None
+    parts = lines[0].split(",", maxsplit=1)
+    if len(parts) != 2:
+        return None
+    try:
+        return int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
+
+
+def get_video_orientation(video_file: Path) -> str:
+    size = probe_video_size(video_file)
+    if size is None:
+        return "landscape"
+    width, height = size
+    return "portrait" if height > width else "landscape"
+
+
+def subtitle_style_for_orientation(orientation: str) -> str:
+    if orientation == "portrait":
+        return PORTRAIT_SUBTITLE_STYLE
+    return LANDSCAPE_SUBTITLE_STYLE
+
+
+def subtitle_filter(video_file: Path, subtitle_file: Path) -> str:
+    style = subtitle_style_for_orientation(get_video_orientation(video_file))
+    sub_path = subtitle_file.as_posix()
+    return f"subtitles=filename='{sub_path}':force_style='{style}'"
 
 
 def merge_video(video_file: Path, dubbing_file: Path, bgm_file: Path, translation_file: Path, session: Path) -> Path:
@@ -64,26 +137,25 @@ def merge_video(video_file: Path, dubbing_file: Path, bgm_file: Path, translatio
             str(video_file),
             "-i",
             str(mixed_audio),
-            "-i",
-            str(subtitles),
+            "-vf",
+            subtitle_filter(video_file, subtitles),
             "-map",
             "0:v:0",
             "-map",
             "1:a:0",
-            "-map",
-            "2:0",
             "-c:v",
-            "copy",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "23",
             "-c:a",
             "aac",
-            "-c:s",
-            "mov_text",
-            "-metadata:s:s:0",
-            "language=chi",
+            "-movflags",
+            "+faststart",
             "-shortest",
             str(final_video),
         ],
         check=True,
     )
     return final_video
-
