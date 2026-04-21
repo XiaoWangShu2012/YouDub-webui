@@ -105,6 +105,7 @@ Key files:
 ## Demucs Source
 
 Demucs is a git submodule at `submodule/demucs`. The PyPI release is not used because the app imports `demucs.api`, which is available from the source tree.
+`requirements.txt` includes the runtime dependencies needed by the source tree, but does not install the PyPI `demucs` package.
 
 ## ModelScope
 
