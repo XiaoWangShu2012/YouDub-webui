@@ -23,17 +23,22 @@ workfolder/        Video/session artifacts (ignored)
 
 ## Setup
 
-Use Aliyun mirrors first, with Tsinghua as fallback.
+Use Aliyun mirrors first. Do not pass Tsinghua as `--extra-index-url`; pip merges indexes and may choose Tsinghua even when Aliyun has the package. Retry individual failed packages with Tsinghua only when Aliyun fails.
 
 ```bash
 cd /Users/liuzhao/code/YouDub-webui
 /opt/homebrew/bin/python3.12 -m venv .venv
 .venv/bin/pip install \
   -i https://mirrors.aliyun.com/pypi/simple/ \
-  --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple/ \
   -r requirements.txt
 git submodule update --init --recursive
 npm --prefix apps/web install --registry=https://registry.npmmirror.com
+```
+
+Fallback example for a package that fails from Aliyun:
+
+```bash
+.venv/bin/pip install -i https://pypi.tuna.tsinghua.edu.cn/simple/ <package-name>
 ```
 
 Create runtime env from the example:
