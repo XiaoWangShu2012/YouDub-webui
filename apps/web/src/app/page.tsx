@@ -376,7 +376,7 @@ export default function Home() {
           </Dialog>
         </header>
 
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section className="grid gap-5">
           <Card>
             <CardHeader>
               <CardTitle>Convert video</CardTitle>
