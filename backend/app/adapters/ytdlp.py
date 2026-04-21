@@ -30,6 +30,7 @@ def _ydl_base(cookie_path: Path, proxy_port: str = "") -> dict[str, Any]:
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
+        "js_runtimes": {"node": {}},
     }
     if cookie_path.exists() and cookie_path.stat().st_size > 0:
         opts["cookiefile"] = str(cookie_path)

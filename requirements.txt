@@ -3,7 +3,7 @@ uvicorn[standard]
 python-dotenv
 pydantic
 openai
-yt-dlp
+yt-dlp[default]
 dora-search>=0.1.12
 diffq>=0.2.1
 julius>=0.2.3
