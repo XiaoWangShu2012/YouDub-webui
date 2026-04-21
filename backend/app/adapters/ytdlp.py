@@ -1,0 +1,113 @@
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+import yt_dlp
+
+from ..sanitize import sanitize_text
+from ..youtube import extract_video_id
+
+
+FORMAT_CANDIDATES = (
+    "bestvideo[height<=1080]+bestaudio/best",
+    "bestvideo+bestaudio/best",
+    "bv*+ba/b",
+    "best",
+)
+
+
+def _proxy_url(proxy_port: str = "") -> str:
+    if proxy_port.strip():
+        return f"http://127.0.0.1:{proxy_port.strip()}"
+    return os.getenv("HTTP_PROXY") or os.getenv("http_proxy") or ""
+
+
+def _ydl_base(cookie_path: Path, proxy_port: str = "") -> dict[str, Any]:
+    opts: dict[str, Any] = {
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "js_runtimes": {"node": {}},
+    }
+    if cookie_path.exists() and cookie_path.stat().st_size > 0:
+        opts["cookiefile"] = str(cookie_path)
+    proxy = _proxy_url(proxy_port)
+    if proxy:
+        opts["proxy"] = proxy
+    return opts
+
+
+def _session_path(workfolder: Path, info: dict[str, Any]) -> Path:
+    uploader = sanitize_text(str(info.get("uploader") or "unknown"))
+    title = sanitize_text(str(info.get("title") or "untitled"))
+    video_id = str(info.get("id") or extract_video_id(str(info.get("webpage_url") or "")))
+    return workfolder / uploader / f"{title}__{video_id}"
+
+
+def _is_format_unavailable(exc: Exception) -> bool:
+    return "Requested format is not available" in str(exc)
+
+
+def _remove_partial_outputs(video_file: Path) -> None:
+    for candidate in video_file.parent.glob(f"{video_file.name}*"):
+        if candidate == video_file:
+            continue
+        if candidate.is_file():
+            candidate.unlink(missing_ok=True)
+
+
+def _download_with_format_candidates(url: str, video_file: Path, cookie_path: Path, proxy_port: str) -> None:
+    last_error: Exception | None = None
+    for format_selector in FORMAT_CANDIDATES:
+        download_opts = {
+            **_ydl_base(cookie_path, proxy_port),
+            "format": format_selector,
+            "merge_output_format": "mp4",
+            "outtmpl": str(video_file),
+            "retries": 10,
+            "fragment_retries": 10,
+        }
+        try:
+            with yt_dlp.YoutubeDL(download_opts) as ydl:
+                ydl.download([url])
+            return
+        except Exception as exc:
+            last_error = exc
+            _remove_partial_outputs(video_file)
+            if not _is_format_unavailable(exc):
+                continue
+    if last_error:
+        raise last_error
+
+
+def download_youtube(url: str, workfolder: Path, cookie_path: Path, proxy_port: str = "") -> tuple[Path, dict[str, Any]]:
+    video_id = extract_video_id(url)
+    info_opts = _ydl_base(cookie_path, proxy_port)
+    with yt_dlp.YoutubeDL(info_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    if str(info.get("id", video_id)) != video_id:
+        raise ValueError("The resolved video id does not match the submitted URL.")
+
+    session = _session_path(workfolder, info)
+    media_dir = session / "media"
+    metadata_dir = session / "metadata"
+    media_dir.mkdir(parents=True, exist_ok=True)
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+
+    video_file = media_dir / "video_source.mp4"
+    metadata_file = metadata_dir / "ytdlp_info.json"
+    metadata_file.write_text(json.dumps(ydl.sanitize_info(info), ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if video_file.exists() and video_file.stat().st_size > 0:
+        return session, info
+
+    _download_with_format_candidates(url, video_file, cookie_path, proxy_port)
+
+    if not video_file.exists() or video_file.stat().st_size == 0:
+        raise RuntimeError("yt-dlp finished without producing media/video_source.mp4")
+
+    return session, info

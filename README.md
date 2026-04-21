@@ -1,228 +1,364 @@
+# YouDub WebUI
 
-# YouDub-webui: 优质视频中文化工具
-## 目录
-- [YouDub-webui: 优质视频中文化工具](#youdub-webui-优质视频中文化工具)
-  - [目录](#目录)
-  - [简介](#简介)
-  - [主要特点](#主要特点)
-  - [安装与使用指南](#安装与使用指南)
-    - [1. 克隆仓库](#1-克隆仓库)
-    - [2. 安装依赖](#2-安装依赖)
-      - [自动安装](#自动安装)
-      - [手动安装](#手动安装)
-    - [3. 环境设置](#3-环境设置)
-    - [4. 运行程序](#4-运行程序)
-      - [自动运行](#自动运行)
-      - [手动运行](#手动运行)
-  - [使用步骤](#使用步骤)
-    - [1. **全自动 (Do Everything)**](#1-全自动-do-everything)
-    - [2. **下载视频 (Download Video)**](#2-下载视频-download-video)
-    - [3. **人声分离 (Demucs Interface)**](#3-人声分离-demucs-interface)
-    - [4. **语音识别 (Whisper Inference)**](#4-语音识别-whisper-inference)
-    - [5. **字幕翻译 (Translation Interface)**](#5-字幕翻译-translation-interface)
-    - [6. **语音合成 (TTS Interface)**](#6-语音合成-tts-interface)
-    - [7. **视频合成 (Synthesize Video Interface)**](#7-视频合成-synthesize-video-interface)
-  - [技术细节](#技术细节)
-    - [AI 语音识别](#ai-语音识别)
-    - [大型语言模型翻译](#大型语言模型翻译)
-    - [AI 声音克隆](#ai-声音克隆)
-    - [视频处理](#视频处理)
-  - [贡献指南](#贡献指南)
-  - [许可协议](#许可协议)
-  - [支持与联系方式](#支持与联系方式)
+YouDub WebUI is a minimal local YouTube-to-Chinese-dubbing console. The current project is a single repository containing a Next.js frontend and a FastAPI backend. It is intentionally small: one page, one active task, one serial media pipeline, local SQLite state, and local filesystem artifacts.
 
-## 简介
-`YouDub-webui` 是 [`YouDub`](https://github.com/liuzhao1225/YouDub) 项目的网页交互版本，基于 `Gradio` 构建，为用户提供简易操作界面来访问和使用 [`YouDub`](https://github.com/liuzhao1225/YouDub) 的强大功能。[`YouDub`](https://github.com/liuzhao1225/YouDub) 是一个开创性的开源工具，旨在将 YouTube 和其他平台上的高质量视频翻译和配音成中文版本。该工具结合了最新的 AI 技术，包括语音识别、大型语言模型翻译，以及 AI 声音克隆技术，提供与原视频相似的中文配音，为中文用户提供卓越的观看体验。
+## What It Does
 
-`YouDub-webui` 适用于多种场景，包括教育、娱乐和专业翻译，特别适合那些希望将国外优秀视频内容本地化的用户。此工具的简洁界面使得即使是非技术用户也能轻松上手，实现视频的快速中文化处理。
+The app takes one YouTube video URL and runs these stages in order:
 
-了解更多关于 `YouDub-webui` 的信息和示例，请访问我们的 [bilibili 视频主页](https://space.bilibili.com/1263732318)。为了更好地服务社区，我们也设立了微信群组，欢迎通过扫描下方的[二维码](#支持与联系方式)加入我们，共同探讨和贡献于 `YouDub-webui` 的发展。
+1. `download`: download one YouTube video with yt-dlp.
+2. `separate`: split vocals and background music with Demucs.
+3. `asr`: recognize speech with FunASR / SenseVoice.
+4. `translate`: translate each utterance independently through an OpenAI-compatible Chat API.
+5. `split_audio`: cut vocal reference segments from the original vocal track.
+6. `tts`: generate Chinese dubbing with VoxCPM2.
+7. `merge_audio`: align generated speech onto the original timeline.
+8. `merge_video`: mix background music, dubbing, subtitles, and source video with FFmpeg.
 
+There is no Redis, Postgres, worker queue, playlist monitor, Bilibili upload, cover editor, or concurrent execution in this MVP.
 
-当然，我将重新撰写 `YouDub-webui` 的主要特点部分。
+## Current Stack
 
----
+- Frontend: Next.js App Router, shadcn/ui-style components, Lucide icons, light mode only.
+- Backend: FastAPI, SQLite, local file storage.
+- Download: yt-dlp with YouTube cookies, optional local proxy port, Node-based EJS challenge solving.
+- Separation: Demucs source checkout as a git submodule.
+- ASR: FunASR `iic/SenseVoiceSmall` with `fsmn-vad`.
+- Translation: OpenAI-compatible Chat Completions API, one request per utterance.
+- TTS: VoxCPM2 from ModelScope.
+- Media: FFmpeg / ffprobe.
+- Runtime target used during development: `gil-gpu:/data1/liuzhao/YouDub-webui`, GPU1 via `CUDA_VISIBLE_DEVICES=1`.
 
-## 主要特点
-`YouDub-webui` 融合了多项先进技术，提供了一套完整的视频中文化工具包，其主要特点包括：
+## Repository Layout
 
-- **视频下载**: 支持通过链接直接下载 YouTube 视频。无论是单个视频、播放列表还是频道内的多个视频，均能轻松下载。
-- **AI 语音识别**: 利用先进的 AI 技术，将视频中的语音高效转换为文字。不仅提供精确的语音到文本转换，还能自动对齐时间并识别不同说话者，极大地增强了信息的丰富性和准确性。
-- **大型语言模型翻译**: 结合大型语言模型如 GPT，实现快速且精准的中文翻译。无论是俚语还是专业术语，均能得到恰当的翻译，确保内容的准确性与地道性。
-- **AI 声音克隆**: 通过 AI 声音克隆技术，生成与原视频配音相似的中文语音。这不仅提升了视频的观看体验，也保留了原视频的情感和语调特色。
-- **视频处理**: 综合了音视频同步处理、字幕添加、视频播放速度调整和帧率设置等多项功能。用户可以根据需要生成高质量的最终视频，实现无缝的观看体验。
-- **自动上传**: 支持将最终视频自动上传到 Bilibili 平台。用户可以在不离开 `YouDub-webui` 的情况下，将视频上传到 Bilibili 平台，实现一键式的视频中文化处理。
-
-`YouDub-webui` 的这些特点使其成为一个强大且易于使用的视频中文化工具，无论是个人用户还是专业团队，都能从中受益。
-
-
-## 安装与使用指南
-
-为了使用 `YouDub-webui`，请遵循以下步骤来安装和配置您的环境：
-
-### 1. 克隆仓库
-首先，克隆 `YouDub-webui` 仓库到您的本地系统：
-```bash
-git clone https://github.com/liuzhao1225/YouDub-webui.git
+```text
+apps/web/                 Next.js frontend
+apps/web/src/app/         Single-page console and app styles
+apps/web/src/components/  shadcn/ui-style primitives
+apps/web/src/lib/api.ts   Frontend API client
+backend/app/              FastAPI app, SQLite repository, pipeline runner
+backend/app/adapters/     yt-dlp, Demucs, FunASR, OpenAI, VoxCPM, FFmpeg adapters
+backend/tests/            Backend unit and integration-style tests
+data/                     Runtime DB, logs, cookies; ignored by git
+workfolder/               Per-video task artifacts; ignored by git
+submodule/demucs/         Demucs source submodule
+env.txt.example           Runtime environment template
+requirements.txt          Python dependencies
 ```
 
-### 2. 安装依赖
-您可以选择自动安装或手动安装依赖：
+## Runtime Data
 
-#### 自动安装
-- 进入 `YouDub-webui` 目录，运行 `setup_windows` 脚本。
-- 脚本会在当前目录创建一个 `venv` 虚拟环境，并自动安装所需依赖，包括 CUDA 12.1 版本的 PyTorch。
+Runtime state is intentionally stored locally:
 
-#### 手动安装
-- 进入 `YouDub-webui` 目录，使用以下命令安装依赖：
-  ```bash
-  cd YouDub-webui
-  pip install -r requirements.txt
-  ```
-- 由于 TTS 依赖的特殊性，所以将 TTS 移出了 `requirements.txt`，需要手动安装：
-  ```bash
-  pip install TTS
-  ```
-- 默认安装为 CPU 版本的 PyTorch 如果你需要手动安装特定 CUDA 版本的 PyTorch，可根据您的 CUDA 版本从 [PyTorch 官方网站](https://pytorch.org/) 获取安装命令。
+- `data/youdub.sqlite`: SQLite database.
+- `data/cookies/youtube.txt`: Netscape-format YouTube cookie file.
+- `data/logs/{task_id}.log`: task logs.
+- `workfolder/{uploader_slug}/{title_slug}__{video_id}/`: task session directory.
 
-### 3. 环境设置
-在运行前，请配置环境变量：
+These paths are ignored by git and should not be committed.
 
-- **环境变量配置**：将 `.env.example` 改名为 `.env` 并填入以下环境变量：
-  - `OPENAI_API_KEY`: OpenAI API 密钥，格式通常为 `sk-xxx`。
-  - `MODEL_NAME`: 模型名称，如 'gpt-4' 或 'gpt-3.5-turbo'。
-  - `OPENAI_API_BASE`: OpenAI API 基础 URL，如果使用自己部署的模型，请填入。
-  - `HF_TOKEN`: Hugging Face token，用于 speaker diarization 功能。
-  - `HF_ENDPOINT`: 如果从 `huggingface` 下载模型时出错，可以添加此环境变量。
-  - `APPID` 和 `ACCESS_TOKEN`: 火山引擎 TTS 所需的凭据。
-  - `BILI_BASE64`: Bilibili API 所需的凭据。获取方法请参考 [bilibili-toolman 准备凭据](https://github.com/mos9527/bilibili-toolman?tab=readme-ov-file#%E5%87%86%E5%A4%87%E5%87%AD%E6%8D%AE)。
+## Artifacts
 
-### 4. 运行程序
-选择以下任一方式运行程序：
+Each task writes a session like:
 
-#### 自动运行
-- 在 `YouDub-webui` 目录下运行 `run_windows.bat`。
+```text
+workfolder/{uploader_slug}/{title_slug}__{video_id}/
+```
 
-#### 手动运行
-- 使用以下命令启动主程序：
-  ```bash
-  python app.py
-  ```
+Important files:
 
-## 使用步骤
+```text
+media/video_source.mp4
+media/audio_vocals.wav
+media/audio_bgm.wav
+metadata/ytdlp_info.json
+metadata/asr.json
+metadata/translation.zh.json
+metadata/subtitles.zh.srt
+segments/vocals/*.wav
+segments/tts/*.wav
+tmp/audio_dubbing.wav
+media/video_final.mp4
+```
 
-### 1. **全自动 (Do Everything)**
+## API
 
-此界面是一个一站式的解决方案，它将执行从视频下载到视频合成的所有步骤。
+Task endpoints:
 
-- **Root Folder**: 设置视频文件的根目录。
-- **Video URL**: 输入视频或播放列表或频道的URL。
-- **Number of videos to download**: 设置要下载的视频数量。
-- **Resolution**: 选择下载视频的分辨率。
-- **Demucs Model**: 选择用于音频分离的Demucs模型。
-- **Demucs Device**: 选择音频分离的处理设备。
-- **Number of shifts**: 设置音频分离时的移位数。
-- **Whisper Model**: 选择用于语音识别的Whisper模型。
-- **Whisper Download Root**: 设置Whisper模型的下载根目录。
-- **Whisper Batch Size**: 设置Whisper处理的批量大小。
-- **Whisper Diarization**: 选择是否进行说话者分离。
-- **Translation Target Language**: 选择字幕的目标翻译语言。
-- **Force Bytedance**: 选择是否强制使用Bytedance语音合成。
-- **Subtitles**: 选择是否在视频中包含字幕。
-- **Speed Up**: 设置视频播放速度。
-- **FPS**: 设置视频的帧率。
-- **Max Workers**: 设置处理任务的最大工作线程数。
-- **Max Retries**: 设置任务失败后的最大重试次数。
-- **Auto Upload Video**: 选择是否自动上传视频到Bilibili。
+- `POST /api/tasks`: submit a single YouTube URL. Returns `409` if a task is queued or running.
+- `GET /api/tasks/current`: current or most recent task.
+- `GET /api/tasks/{id}`: task details and stage statuses.
+- `GET /api/tasks/{id}/log`: task log text.
+- `GET /api/tasks/{id}/artifact/final-video`: final video download.
 
-### 2. **下载视频 (Download Video)**
+Settings endpoints:
 
-此界面用于单独下载视频。
+- `GET /api/cookies/youtube`: returns cookie metadata only. Cookie content is never returned.
+- `POST /api/cookies/youtube`: saves Netscape cookie content to `data/cookies/youtube.txt`.
+- `GET /api/settings/openai`: returns base URL, model, `has_api_key`, and a masked API key.
+- `POST /api/settings/openai`: saves OpenAI base URL, API key, and model.
+- `POST /api/settings/openai/models`: fetches model IDs from the configured OpenAI-compatible `/models` API.
+- `GET /api/settings/ytdlp`: returns the yt-dlp proxy port.
+- `POST /api/settings/ytdlp`: saves the yt-dlp proxy port.
 
-- **Video URL**: 输入视频或播放列表或频道的URL。
-- **Output Folder**: 设置视频下载后的输出文件夹。
-- **Resolution**: 选择下载视频的分辨率。
-- **Number of videos to download**: 设置要下载的视频数量。
+Utility:
 
-### 3. **人声分离 (Demucs Interface)**
+- `GET /api/health`: basic health check.
 
-此界面用于从视频中分离人声。
+## Frontend Behavior
 
-- **Folder**: 设置包含视频的文件夹。
-- **Model**: 选择用于音频分离的Demucs模型。
-- **Device**: 选择音频分离的处理设备。
-- **Progress Bar in Console**: 选择是否在控制台显示进度条。
-- **Number of shifts**: 设置音频分离时的移位数。
+The frontend is one vertical page:
 
-### 4. **语音识别 (Whisper Inference)**
+1. Convert video card.
+2. Progress card.
+3. Task log card.
 
-此界面用于从视频音频中进行语音识别。
+Settings are in a modal:
 
-- **Folder**: 设置包含视频的文件夹。
-- **Model**: 选择用于语音识别的Whisper模型。
-- **Download Root**: 设置Whisper模型的下载根目录。
-- **Device**: 选择语音识别的处理设备。
-- **Batch Size**: 设置Whisper处理的批量大小。
-- **Diarization**: 选择是否进行说话者分离。
+- YouTube cookie textarea.
+- yt-dlp proxy port input.
+- OpenAI base URL.
+- OpenAI API key with show/hide button.
+- Model input or model select after clicking `Get models`.
 
-### 5. **字幕翻译 (Translation Interface)**
+Sensitive values are masked in the UI:
 
-此界面用于将识别出的语音转换为字幕并翻译。
+- Saved API key appears as `********`.
+- Saved YouTube cookie appears as a placeholder instead of being returned from the backend.
+- Saving without editing a masked value keeps the existing secret.
 
-- **Folder**: 设置包含视频的文件夹。
-- **Target Language**: 选择字幕的目标翻译语言。
+The frontend polls `GET /api/tasks/current` every 2 seconds. There is no SSE or WebSocket.
 
-### 6. **语音合成 (TTS Interface)**
+## Environment
 
-此界面用于将翻译后的文字转换为语音。
+The app reads runtime values from `.env`. Codex should not read or edit `.env` directly. Use `env.txt` for editable local notes and copy values into `.env` when needed.
 
-- **Folder**: 设置包含视频的文件夹。
-- **Force Bytedance**: 选择是否强制使用Bytedance语音合成。
+Template:
 
-### 7. **视频合成 (Synthesize Video Interface)**
+```bash
+cp env.txt.example env.txt
+```
 
-此界面用于将视频、字幕和语音合成为最终视频。
+Important variables:
 
-- **Folder**: 设置包含视频的文件夹。
-- **Subtitles**: 选择是否在视频中包含字幕。
-- **Speed Up**: 设置视频播放速度。
-- **FPS**: 设置视频的帧率。
-- **Resolution**: 选择视频的分辨率。
+```text
+WORKFOLDER=./workfolder
+MODEL_CACHE_DIR=./data/modelscope
+DEVICE=cuda
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+YTDLP_PROXY_PORT=
+FUNASR_MODEL=iic/SenseVoiceSmall
+FUNASR_VAD_MODEL=fsmn-vad
+VOXCPM_MODEL=OpenBMB/VoxCPM2
+VOXCPM_MODEL_DIR=
+HTTP_PROXY=
+```
 
-## 技术细节
+`YTDLP_PROXY_PORT` and the UI setting are ports only, for example `20171`. The backend converts that to `http://127.0.0.1:20171` for yt-dlp. If no proxy port is configured, yt-dlp can still use `HTTP_PROXY` / `http_proxy`.
 
-### AI 语音识别
-我们的 AI 语音识别功能现在基于 [WhisperX](https://github.com/m-bain/whisperX) 实现。WhisperX 是一个高效的语音识别系统，建立在 OpenAI 开发的 Whisper 系统之上。它不仅能够精确地将语音转换为文本，还能自动对齐时间，并识别每句话的说话人物。这种先进的处理方式不仅提高了处理速度和准确度，还为用户提供了更丰富的信息，例如说话者的识别。
+## Install
 
-### 大型语言模型翻译
-我们的翻译功能继续使用 OpenAI API 提供的各种模型，包括官方的 GPT 模型。同时，我们也在利用诸如 [api-for-open-llm](https://github.com/xusenlinzy/api-for-open-llm) 这样的项目，这使我们能够更灵活地整合和利用不同的大型语言模型进行翻译工作，确保翻译质量和效率。
+Use Aliyun first. Do not configure Tsinghua as `--extra-index-url`; pip can choose packages from the fallback index even when Aliyun has them. If Aliyun fails for a specific package, retry that package separately with Tsinghua.
 
-### AI 声音克隆
-在声音克隆方面，我们已经转向使用 [Coqui AI TTS](https://github.com/coqui-ai/TTS)。同时，对于单一说话人的情况，我们采用了火山引擎进行 TTS，以获得更优质的音质。火山引擎的高级技术能够生成极其自然且流畅的语音，适用于各种应用场景，提升了最终产品的整体质量。
+```bash
+cd /Users/liuzhao/code/YouDub-webui
+python3.12 -m venv .venv
+.venv/bin/pip install -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+git submodule update --init --recursive
+npm --prefix apps/web install --registry=https://registry.npmmirror.com
+```
 
-### 视频处理
-在视频处理方面，我们依然强调音视频的同步处理。我们的目标是确保音频与视频画面的完美对齐，并生成准确的字幕，从而为用户提供一个无缝且沉浸式的观看体验。我们的处理流程和技术确保了视频内容的高质量和观看的连贯性。
+Tsinghua fallback for one failed package:
 
+```bash
+.venv/bin/pip install -i https://pypi.tuna.tsinghua.edu.cn/simple/ <package-name>
+```
 
-## 贡献指南
-欢迎对 `YouDub-webui` 进行贡献。您可以通过 [GitHub Issues](https://github.com/liuzhao1225/YouDub-webui/issues) 或 [Pull Request](https://github.com/liuzhao1225/YouDub-webui/pulls) 提交改进建议或报告问题。
+## Demucs
 
-## 许可协议
-`YouDub-webui` 遵循 Apache License 2.0。使用本工具时，请确保遵守相关的法律和规定，包括版权法、数据保护法和隐私法。未经原始内容创作者和/或版权所有者许可，请勿使用此工具。
+Demucs is intentionally used as a source submodule:
 
-## 支持与联系方式
-如需帮助或有任何疑问，请通过 [GitHub Issues](https://github.com/liuzhao1225/YouDub-webui/issues) 联系我们。
-加入我们的Discord服务器进行讨论和获取支持：[Discord服务器](https://discord.gg/vbkYnN2Rrm)
-你也可以加入我们的微信群，扫描下方的二维码即可：
+```text
+submodule/demucs
+```
 
-![WeChat Group](17ab2707ec88ddd8ad3fbd5c705d076b.png)
+The app imports `demucs.api.Separator`. The published PyPI package is not used for this import path because the required API is available from the source tree. Keep the submodule initialized before running the pipeline.
 
-## Star History
+## yt-dlp Notes
 
-<a href="https://www.star-history.com/?repos=liuzhao1225%2FYouDub-webui&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=liuzhao1225/YouDub-webui&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=liuzhao1225/YouDub-webui&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=liuzhao1225/YouDub-webui&type=date&legend=top-left" />
- </picture>
-</a>
+The download adapter mirrors the working `youdub-backend` format strategy first:
+
+```text
+bestvideo[height<=1080]+bestaudio/best
+```
+
+It then falls back through wider selectors:
+
+```text
+bestvideo+bestaudio/best
+bv*+ba/b
+best
+```
+
+The project depends on `yt-dlp[default]`, which installs `yt-dlp-ejs`. The adapter also enables Node as the JavaScript runtime:
+
+```python
+js_runtimes={"node": {}}
+```
+
+This is needed for YouTube n-challenge solving. Node must be installed and available in `PATH`.
+
+YouTube may still reject downloads when:
+
+- the proxy IP is rate limited or challenged with HTTP 429;
+- the cookie file is stale or incomplete;
+- the browser rotated the account cookies after export.
+
+When this happens, export a fresh Netscape-format cookie file from a logged-in YouTube browser session and paste it into Settings.
+
+## Models
+
+Model downloads should use ModelScope where possible.
+
+Defaults:
+
+- FunASR model: `iic/SenseVoiceSmall`
+- FunASR VAD: `fsmn-vad`
+- VoxCPM model: `OpenBMB/VoxCPM2`
+
+VoxCPM2 is downloaded through `modelscope.snapshot_download`. Use `MODEL_CACHE_DIR` to place model caches on a large disk, for example:
+
+```text
+/data1/liuzhao/modelscope_cache
+```
+
+Known remote cache paths from the development machine:
+
+```text
+/data1/liuzhao/modelscope_cache/OpenBMB__VoxCPM2
+/data1/liuzhao/modelscope_cache/models/iic/SenseVoiceSmall
+/data1/liuzhao/modelscope_cache/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
+/data1/liuzhao/torch_cache/hub/checkpoints
+```
+
+Demucs weights are downloaded by the upstream Demucs source code into the PyTorch hub cache.
+
+## Run Locally
+
+Backend:
+
+```bash
+.venv/bin/uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Frontend:
+
+```bash
+npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3000
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+If the frontend is built for production, set `NEXT_PUBLIC_API_BASE_URL` at build time:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://172.27.2.90:8000 npm --prefix apps/web run build
+npm --prefix apps/web run start -- --hostname 0.0.0.0 --port 3000
+```
+
+## Remote GPU Runbook
+
+The development deployment currently uses:
+
+```text
+Host: gil-gpu
+Path: /data1/liuzhao/YouDub-webui
+GPU: CUDA_VISIBLE_DEVICES=1
+Web: http://172.27.2.90:3000
+API: http://172.27.2.90:8000
+tmux sessions: youdub-api, youdub-web
+```
+
+Start backend:
+
+```bash
+tmux new-session -d -s youdub-api "\
+cd /data1/liuzhao/YouDub-webui && \
+export CUDA_VISIBLE_DEVICES=1 DEVICE=cuda \
+MODEL_CACHE_DIR=/data1/liuzhao/modelscope_cache \
+MODELSCOPE_CACHE=/data1/liuzhao/modelscope_cache \
+TORCH_HOME=/data1/liuzhao/torch_cache \
+CORS_ALLOW_ORIGINS=http://172.27.2.90:3000,http://100.94.222.54:3000 && \
+.venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+```
+
+Start frontend:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://172.27.2.90:8000 npm --prefix apps/web run build
+tmux new-session -d -s youdub-web "\
+cd /data1/liuzhao/YouDub-webui && \
+NEXT_PUBLIC_API_BASE_URL=http://172.27.2.90:8000 \
+npm --prefix apps/web run start -- --hostname 0.0.0.0 --port 3000"
+```
+
+Check status:
+
+```bash
+curl -sS http://127.0.0.1:8000/api/health
+curl -I http://127.0.0.1:3000
+tmux ls
+```
+
+## Tests
+
+Backend:
+
+```bash
+.venv/bin/pytest backend/tests
+```
+
+Frontend:
+
+```bash
+npm --prefix apps/web run lint
+npm --prefix apps/web run build
+```
+
+Current backend coverage includes:
+
+- YouTube URL validation.
+- Cookie and API key masking.
+- OpenAI model listing endpoint.
+- yt-dlp proxy port validation.
+- yt-dlp format selector order and Node EJS runtime setting.
+- fixed serial stage status progression.
+- mocked full pipeline success and failure behavior.
+- translation one-request-per-utterance behavior.
+- FFmpeg helper behavior.
+
+## Current Limitations
+
+- Only one active task is supported.
+- No task cancel endpoint yet.
+- No task deletion or cleanup UI yet.
+- No playlist/channel monitoring.
+- No Bilibili upload.
+- No user accounts or multi-user security model.
+- YouTube cookie content is stored locally in plaintext.
+- OpenAI API key is stored locally in plaintext.
+- The UI shows progress by polling, not streaming logs.
+
+## Operational Notes
+
+- Keep `.env`, `data/`, `workfolder/`, model caches, downloaded videos, and cookies out of git.
+- Re-export YouTube cookies when yt-dlp reports `cookies are no longer valid` or `Sign in to confirm you're not a bot`.
+- Keep proxy port configured when the server needs v2rayA or another local proxy.
+- If using Tailscale IP for the frontend, rebuild the frontend with `NEXT_PUBLIC_API_BASE_URL` pointing to the matching API IP.
+- For dependency installs, Aliyun is the primary source; Tsinghua is manual fallback only.
